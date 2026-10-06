@@ -1,0 +1,3 @@
+# Los repos de los sitios los clona deploy.sh en el EC2, no van al git.
+sitio-team-thunder/
+landing-page-vjtech/

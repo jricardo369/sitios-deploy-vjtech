@@ -26,14 +26,25 @@ sync_repo() {
   fi
 }
 
-echo "== 0. Liberar puerto 80 =="
+echo "== 0. Verificar puerto 80 =="
 echo "-- contenedores publicando el 80 --"
-docker ps --filter "publish=80" --format 'table {{.ID}}\t{{.Names}}\t{{.Ports}}' || true
-CONFLICTO_80="$(docker ps --filter "publish=80" -q || true)"
-if [ -n "$CONFLICTO_80" ]; then
-  # shellcheck disable=SC2086
-  echo "-- removiendo contenedores que ocupan el 80 --"
-  echo "$CONFLICTO_80" | xargs -r docker rm -f || true
+docker ps --filter "publish=80" --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}' || true
+# Contenedores de OTRO proyecto en el 80: no tocarlos, abortar con diagnostico.
+# (Los propios del proyecto 'sitios' los recrea el compose mas abajo sin problema.)
+TODOS_80="$(docker ps --filter "publish=80" -q || true)"
+PROPIOS_80="$(docker ps --filter "publish=80" --filter "label=com.docker.compose.project=sitios" -q || true)"
+EXTERNOS_80=""
+for id in $TODOS_80; do
+  case " $PROPIOS_80 " in
+    *" $id "*) ;;
+    *) EXTERNOS_80="$EXTERNOS_80 $id" ;;
+  esac
+done
+if [ -n "$EXTERNOS_80" ]; then
+  echo "ERROR: el puerto 80 lo ocupa(n) contenedor(es) ajeno(s) a este deploy:$EXTERNOS_80"
+  docker ps --filter "publish=80" --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Ports}}'
+  echo "Decide que hacer con ellos (ej: docker rm -f <id>) y reintenta el deploy."
+  exit 1
 fi
 echo "-- procesos del host escuchando en el 80 --"
 if sudo -n true 2>/dev/null; then
@@ -60,7 +71,7 @@ docker builder prune -af || true
 docker volume prune -f || true
 echo "-- Espacio tras limpiar --"
 df -h / | tail -1
-docker compose up -d --build
+docker compose up -d --build --force-recreate
 
 echo "== 3. Retirar despliegue viejo del puerto 8081 =="
 docker rm -f thunders 2>/dev/null || true
@@ -68,10 +79,32 @@ docker rmi -f thunders:latest 2>/dev/null || true
 
 echo "== 4. Limpieza y verificacion =="
 docker image prune -f || true
-sleep 5
 docker compose ps
-curl -fsS -o /dev/null -w "thunder-team/healthz -> %{http_code}\n" "http://127.0.0.1/thunder-team/healthz"
-curl -fsS -o /dev/null -w "thunder-team/         -> %{http_code}\n" "http://127.0.0.1/thunder-team/"
-curl -fsS -o /dev/null -w "vj-tech/              -> %{http_code}\n" "http://127.0.0.1/vj-tech/"
-curl -fsS -o /dev/null -w "vj-tech/terminos.html -> %{http_code}\n" "http://127.0.0.1/vj-tech/terminos.html"
+check_url() {
+  local url="$1" i code
+  for i in $(seq 1 20); do
+    code="$(curl -sS -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || echo 000)"
+    if [ "$code" = "200" ]; then
+      echo "$url -> $code"
+      return 0
+    fi
+    sleep 3
+  done
+  echo "$url -> $code (tras 60s de reintentos)"
+  return 1
+}
+FALLO=0
+check_url "http://127.0.0.1/thunder-team/healthz" || FALLO=1
+check_url "http://127.0.0.1/thunder-team/" || FALLO=1
+check_url "http://127.0.0.1/vj-tech/" || FALLO=1
+check_url "http://127.0.0.1/vj-tech/terminos.html" || FALLO=1
+if [ "$FALLO" -ne 0 ]; then
+  echo "== Diagnostico del fallo =="
+  docker compose ps || true
+  echo "--- logs proxy ---"
+  docker compose logs --tail=60 proxy || true
+  echo "--- logs apps ---"
+  docker compose logs --tail=20 thunder vjtech || true
+  exit 1
+fi
 echo "OK deploy: /thunder-team y /vj-tech en puerto 80"

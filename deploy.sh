@@ -26,6 +26,22 @@ sync_repo() {
   fi
 }
 
+echo "== 0. Liberar puerto 80 =="
+echo "-- contenedores publicando el 80 --"
+docker ps --filter "publish=80" --format 'table {{.ID}}\t{{.Names}}\t{{.Ports}}' || true
+CONFLICTO_80="$(docker ps --filter "publish=80" -q || true)"
+if [ -n "$CONFLICTO_80" ]; then
+  # shellcheck disable=SC2086
+  echo "-- removiendo contenedores que ocupan el 80 --"
+  echo "$CONFLICTO_80" | xargs -r docker rm -f || true
+fi
+echo "-- procesos del host escuchando en el 80 --"
+if sudo -n true 2>/dev/null; then
+  sudo ss -ltnp 2>/dev/null | grep ':80 ' || echo "(host libre en el 80)"
+else
+  echo "(sin sudo sin password: no se pudo inspeccionar el host)"
+fi
+
 echo "== 1. Actualizar repos de los sitios =="
 sync_repo "$THUNDER_DIR" "$THUNDER_REPO"
 sync_repo "$VJTECH_DIR" "$VJTECH_REPO"

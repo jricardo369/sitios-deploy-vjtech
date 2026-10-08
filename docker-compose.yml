@@ -1,8 +1,9 @@
 name: sitios
 
-# Dos sitios estaticos detras de un reverse proxy en el puerto 80:
+# Tres sitios detras de un reverse proxy en el puerto 80:
 #   http://<EC2>/thunder-team/  -> servicio thunder (repo sitio-team-thunder)
 #   http://<EC2>/vj-tech/       -> servicio vjtech  (repo landing-page-vjtech)
+#   http://<EC2>/app-gastos/    -> servicio gastos  (repo app-gastos-web, SPA Angular)
 # Los servicios solo exponen el puerto 80 en la red interna de docker;
 # unicamente el proxy publica el 80 del host.
 
@@ -19,6 +20,12 @@ services:
     expose:
       - "80"
 
+  gastos:
+    build: ./app-gastos-web
+    restart: unless-stopped
+    expose:
+      - "80"
+
   proxy:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -29,3 +36,4 @@ services:
     depends_on:
       - thunder
       - vjtech
+      - gastos

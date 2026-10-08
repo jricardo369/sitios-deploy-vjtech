@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Deploy de los sitios estaticos (puerto 80: /thunder-team y /vj-tech).
+# Deploy de los sitios (puerto 80: /thunder-team, /vj-tech y /app-gastos).
 # Uso: bash deploy.sh
 # Se ejecuta en el EC2, en la raiz de este repo (sitios-deploy-vjtech).
 set -euo pipefail
@@ -13,6 +13,8 @@ THUNDER_DIR="sitio-team-thunder"
 THUNDER_REPO="https://github.com/jricardo369/sitio-team-thunder.git"
 VJTECH_DIR="landing-page-vjtech"
 VJTECH_REPO="https://github.com/jricardo369/landing-page-vjtech.git"
+GASTOS_DIR="app-gastos-web"
+GASTOS_REPO="https://github.com/jricardo369/app-gastos-web.git"
 
 sync_repo() {
   local dir="$1" url="$2"
@@ -56,6 +58,7 @@ fi
 echo "== 1. Actualizar repos de los sitios =="
 sync_repo "$THUNDER_DIR" "$THUNDER_REPO"
 sync_repo "$VJTECH_DIR" "$VJTECH_REPO"
+sync_repo "$GASTOS_DIR" "$GASTOS_REPO"
 
 echo "== 2. Build de imagenes =="
 # Docker daemon debe arrancar solo tras reboot del EC2,
@@ -98,13 +101,16 @@ check_url "http://127.0.0.1/thunder-team/healthz" || FALLO=1
 check_url "http://127.0.0.1/thunder-team/" || FALLO=1
 check_url "http://127.0.0.1/vj-tech/" || FALLO=1
 check_url "http://127.0.0.1/vj-tech/terminos.html" || FALLO=1
+check_url "http://127.0.0.1/app-gastos/" || FALLO=1
+# Ruta del router Angular (SPA fallback -> index.html)
+check_url "http://127.0.0.1/app-gastos/login" || FALLO=1
 if [ "$FALLO" -ne 0 ]; then
   echo "== Diagnostico del fallo =="
   docker compose ps || true
   echo "--- logs proxy ---"
   docker compose logs --tail=60 proxy || true
   echo "--- logs apps ---"
-  docker compose logs --tail=20 thunder vjtech || true
+  docker compose logs --tail=20 thunder vjtech gastos || true
   exit 1
 fi
-echo "OK deploy: /thunder-team y /vj-tech en puerto 80"
+echo "OK deploy: /thunder-team, /vj-tech y /app-gastos en puerto 80"

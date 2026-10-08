@@ -1,12 +1,13 @@
 # sitios-deploy-vjtech
 Sitios deploy en server vjtech.
 
-Dos sitios estaticos servidos por un reverse proxy nginx en el **puerto 80**:
+Sitios servidos por un reverse proxy nginx en el **puerto 80**:
 
 | Ruta | Servicio | Repo |
 |---|---|---|
 | `/thunder-team/` | `thunder` | sitio-team-thunder |
 | `/vj-tech/` | `vjtech` | landing-page-vjtech |
+| `/app-gastos/` | `gastos` | app-gastos-web (SPA Ionic/Angular) |
 
 ## Setup one-time en el EC2
 
@@ -24,7 +25,7 @@ Security Group: abrir inbound **TCP 80** desde `0.0.0.0/0`.
 
 ## Deploys
 
-Automaticos por GitHub Actions (push a `master` en cualquiera de los dos
+Automaticos por GitHub Actions (push a `master` en cualquiera de los tres
 repos de sitios). Manual: `cd ~/sitios/sitios-deploy-vjtech && bash deploy.sh`.
 
 Secrets requeridos en cada repo de sitio: `EC2_HOST`, `EC2_USER`,
